@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum NetworkError: Error, LocalizedError {
+enum NetworkError: Error, LocalizedError, Equatable {
     case invalidURL
     case noData
     case decodingFailed
@@ -53,7 +53,35 @@ enum HTTPMethod: String {
 
 class NetworkManager: NetworkManagerProtocol {
     static let shared = NetworkManager() // Singleton instance
-    private init() {}
+    
+    private var urlSession: URLSession
+
+    // Default initializer uses `URLSession.shared`
+    private init(urlSession: URLSession = .shared) {
+        self.urlSession = urlSession
+    }
+
+    // Convenience initializer for testing
+    init(session: URLSession) {
+        self.urlSession = session
+    }
+
+    // URL validation function
+    private func isValidURL(_ urlString: String) -> Bool {
+        guard let url = URL(string: urlString) else {
+            return false
+        }
+        
+        guard let scheme = url.scheme, ["http", "https"].contains(scheme) else {
+            return false
+        }
+        
+        guard url.host != nil else {
+            return false
+        }
+        
+        return true
+    }
 
     func request<T: Codable>(
         endpoint: String,
@@ -61,6 +89,11 @@ class NetworkManager: NetworkManagerProtocol {
         completion: @escaping (Result<T, Error>) -> Void
     ) {
         // Validate URL
+        guard isValidURL(endpoint) else {
+            completion(.failure(NetworkError.invalidURL))
+            return
+        }
+
         guard let url = URL(string: endpoint) else {
             completion(.failure(NetworkError.invalidURL))
             return
@@ -68,13 +101,10 @@ class NetworkManager: NetworkManagerProtocol {
 
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
-
-        // Add headers (if needed)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        // Create the data task
-        let task = URLSession.shared.dataTask(with: request) { data, response, error in
-            // Check for network errors
+        // Use the injected `URLSession`
+        let task = urlSession.dataTask(with: request) { data, response, error in
             if let error = error as NSError? {
                 if error.code == NSURLErrorTimedOut {
                     completion(.failure(NetworkError.timeout))
@@ -84,21 +114,16 @@ class NetworkManager: NetworkManagerProtocol {
                 return
             }
 
-            // Check for HTTP errors
-            if let httpResponse = response as? HTTPURLResponse {
-                if !(200...299).contains(httpResponse.statusCode) {
-                    completion(.failure(NetworkError.serverError(statusCode: httpResponse.statusCode)))
-                    return
-                }
+            if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
+                completion(.failure(NetworkError.serverError(statusCode: httpResponse.statusCode)))
+                return
             }
 
-            // Ensure data is present
             guard let data = data else {
                 completion(.failure(NetworkError.noData))
                 return
             }
 
-            // Decode the data
             do {
                 let decodedResponse = try JSONDecoder().decode(T.self, from: data)
                 completion(.success(decodedResponse))
@@ -107,7 +132,6 @@ class NetworkManager: NetworkManagerProtocol {
             }
         }
 
-        // Start the network request
         task.resume()
     }
 }
