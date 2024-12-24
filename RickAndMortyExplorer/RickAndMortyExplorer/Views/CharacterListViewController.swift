@@ -26,36 +26,27 @@ class CharacterListViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        setupNavigationBar()
         setupUI()
         bindViewModel()
         viewModel.fetchCharacters()
     }
-
     
-    private func setupNavigationBar() {
-        let titleLabel = UILabel()
-        titleLabel.text = "Characters"
-        titleLabel.font = .boldSystemFont(ofSize: 30)
-        titleLabel.textAlignment = .left
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        let titleContainer = UIView()
-        titleContainer.addSubview(titleLabel)
-
-        NSLayoutConstraint.activate([
-            titleLabel.leadingAnchor.constraint(equalTo: titleContainer.leadingAnchor),
-            titleLabel.topAnchor.constraint(equalTo: titleContainer.topAnchor),
-            titleLabel.bottomAnchor.constraint(equalTo: titleContainer.bottomAnchor)
-        ])
-
-        navigationItem.titleView = titleContainer
-        navigationController?.navigationBar.layoutIfNeeded()
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        navigationController?.isNavigationBarHidden = false
+        title = "Characters"
+        navigationController?.navigationBar.prefersLargeTitles = true
+        navigationItem.largeTitleDisplayMode = .always
     }
+
+
 
     private func setupUI() {
         view.backgroundColor = .white
         title = "Characters"
+        navigationController?.navigationBar.prefersLargeTitles = true
+        navigationItem.largeTitleDisplayMode = .always
+        
 
         // Filter Buttons
         let buttonTitles = ["Alive", "Dead", "Unknown"]
@@ -86,7 +77,7 @@ class CharacterListViewController: UIViewController {
         NSLayoutConstraint.activate([
             buttonStackView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
             buttonStackView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            buttonStackView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -140),
+            buttonStackView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -(UIScreen.main.bounds.width * 0.4)),
             buttonStackView.heightAnchor.constraint(equalToConstant: 44)
         ])
 
