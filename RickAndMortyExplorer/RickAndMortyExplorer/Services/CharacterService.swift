@@ -8,9 +8,8 @@
 import Foundation
 
 protocol CharacterServiceProtocol {
-    func fetchCharacters(page: Int, completion: @escaping (Result<CharacterResponse, Error>) -> Void)
+    func fetchCharacters(page: Int, status: String?, completion: @escaping (Result<CharacterResponse, Error>) -> Void)
 }
-
 
 class CharacterService: CharacterServiceProtocol {
     private let networkManager: NetworkManagerProtocol
@@ -19,16 +18,19 @@ class CharacterService: CharacterServiceProtocol {
         self.networkManager = networkManager
     }
 
-    func fetchCharacters(page: Int, completion: @escaping (Result<CharacterResponse, Error>) -> Void) {
-        let endpoint = "https://rickandmortyapi.com/api/character?page=\(page)"
+    func fetchCharacters(page: Int, status: String?, completion: @escaping (Result<CharacterResponse, Error>) -> Void) {
+        var endpoint = "https://rickandmortyapi.com/api/character?page=\(page)"
+        
+        if let status = status?.lowercased() {
+            endpoint += "&status=\(status)"
+        }
 
         networkManager.request(endpoint: endpoint, method: .GET) { (result: Result<CharacterResponse, Error>) in
             switch result {
             case .success(let response):
                 completion(.success(response))
             case .failure(let error):
-                // Print detailed error description for debugging
-                print("Error: \(error.localizedDescription)")
+                print("Error: \(error.localizedDescription)") // Debugging information
                 completion(.failure(error))
             }
         }

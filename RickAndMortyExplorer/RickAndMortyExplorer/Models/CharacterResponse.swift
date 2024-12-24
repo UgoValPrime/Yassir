@@ -41,3 +41,13 @@ struct CharacterResponse: Codable {
     let results: [Characterr]
 }
 
+
+
+struct CharacterDetail {
+    let name: String
+    let species: String
+    let gender: String
+    let location: String
+    let status: String
+    let imageUrl: String
+}

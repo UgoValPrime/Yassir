@@ -6,6 +6,8 @@
 //
 
 import UIKit
+import SwiftUI
+import Kingfisher
 
 class CharacterListViewController: UIViewController {
     private let viewModel: CharacterListViewModel
@@ -24,31 +26,90 @@ class CharacterListViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        setupNavigationBar()
         setupUI()
         bindViewModel()
         viewModel.fetchCharacters()
+    }
+
+    
+    private func setupNavigationBar() {
+        let titleLabel = UILabel()
+        titleLabel.text = "Characters"
+        titleLabel.font = .boldSystemFont(ofSize: 30)
+        titleLabel.textAlignment = .left
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let titleContainer = UIView()
+        titleContainer.addSubview(titleLabel)
+
+        NSLayoutConstraint.activate([
+            titleLabel.leadingAnchor.constraint(equalTo: titleContainer.leadingAnchor),
+            titleLabel.topAnchor.constraint(equalTo: titleContainer.topAnchor),
+            titleLabel.bottomAnchor.constraint(equalTo: titleContainer.bottomAnchor)
+        ])
+
+        navigationItem.titleView = titleContainer
+        navigationController?.navigationBar.layoutIfNeeded()
     }
 
     private func setupUI() {
         view.backgroundColor = .white
         title = "Characters"
 
+        // Filter Buttons
+        let buttonTitles = ["Alive", "Dead", "Unknown"]
+        let buttons = buttonTitles.enumerated().map { index, title -> UIButton in
+            let button = UIButton(type: .system)
+            button.setTitle(title, for: .normal)
+            button.setTitleColor(.black, for: .normal)
+            button.titleLabel?.font = .boldSystemFont(ofSize: 16)
+            button.backgroundColor = .clear
+            button.layer.borderWidth = 1
+            button.layer.borderColor = UIColor.lightGray.cgColor
+            button.layer.cornerRadius = 18 // Capsule shape
+            button.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+            button.tag = index
+            button.addTarget(self, action: #selector(filterButtonTapped(_:)), for: .touchUpInside)
+            return button
+        }
+
+        // Use a UIStackView to arrange the buttons proportionally
+        let buttonStackView = UIStackView(arrangedSubviews: buttons)
+        buttonStackView.axis = .horizontal
+        buttonStackView.spacing = 8
+        buttonStackView.alignment = .center
+        buttonStackView.distribution = .equalSpacing // Dynamically adjusts spacing
+        buttonStackView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(buttonStackView)
+
+        NSLayoutConstraint.activate([
+            buttonStackView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            buttonStackView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            buttonStackView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -140),
+            buttonStackView.heightAnchor.constraint(equalToConstant: 44)
+        ])
+
+        // Table View
         tableView.delegate = self
         tableView.dataSource = self
         tableView.register(CharacterTableViewCell.self, forCellReuseIdentifier: "CharacterCell")
-
         view.addSubview(tableView)
+        tableView.separatorStyle = .none
+        
         tableView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            tableView.topAnchor.constraint(equalTo: view.topAnchor),
+            tableView.topAnchor.constraint(equalTo: buttonStackView.bottomAnchor, constant: 16),
             tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         ])
 
+        // Activity Indicator
         activityIndicator.center = view.center
         view.addSubview(activityIndicator)
 
+        // No Data Label
         noDataLabel.text = "No characters available."
         noDataLabel.textAlignment = .center
         noDataLabel.isHidden = true
@@ -59,6 +120,32 @@ class CharacterListViewController: UIViewController {
             noDataLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
     }
+
+    @objc private func filterButtonTapped(_ sender: UIButton) {
+        // Reset all buttons to default style
+        guard let buttonStackView = sender.superview as? UIStackView else { return }
+        for case let button as UIButton in buttonStackView.arrangedSubviews {
+            button.layer.borderColor = UIColor.lightGray.cgColor
+            button.setTitleColor(.black, for: .normal)
+        }
+
+        // Highlight the selected button
+        sender.layer.borderColor = UIColor.systemBlue.cgColor
+        sender.setTitleColor(.systemBlue, for: .normal)
+
+        // Update ViewModel's filter based on the selected button
+        let selectedStatus: String
+        switch sender.tag {
+        case 0: selectedStatus = "alive"
+        case 1: selectedStatus = "dead"
+        case 2: selectedStatus = "unknown"
+        default: selectedStatus = ""
+        }
+
+        viewModel.filterCharacters(by: selectedStatus)
+        viewModel.fetchCharacters()
+    }
+
 
     private func bindViewModel() {
         viewModel.onCharactersFetched = { [weak self] in
@@ -104,8 +191,26 @@ extension CharacterListViewController: UITableViewDataSource, UITableViewDelegat
         }
         let character = viewModel.characters[indexPath.row]
         cell.configure(with: character)
+        cell.selectionStyle = .none
         return cell
     }
+    
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        let selectedCharacter = viewModel.characters[indexPath.row]
+
+        // Map ViewModel character data to CharacterDetail
+        let characterDetail = CharacterDetail(
+            name: selectedCharacter.name,
+            species: selectedCharacter.species,
+            gender: selectedCharacter.gender,
+            location: selectedCharacter.location.name,
+            status: selectedCharacter.status,
+            imageUrl: selectedCharacter.image
+        )
+
+        // Pass the character and image URL to showCharacterDetail
+        showCharacterDetail(character: characterDetail, imageUrl: selectedCharacter.image)
+        }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         let offsetY = scrollView.contentOffset.y
@@ -119,3 +224,39 @@ extension CharacterListViewController: UITableViewDataSource, UITableViewDelegat
         }
     }
 }
+
+
+
+
+extension CharacterListViewController {
+    func showCharacterDetail(character: CharacterDetail, imageUrl: String) {
+
+        let cache = KingfisherManager.shared.cache
+        
+        cache.retrieveImage(forKey: imageUrl) { [weak self] result in
+            guard let self = self else { return }
+            
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let cacheResult):
+                    let cachedImage = cacheResult.image
+                    
+                    self.presentCharacterDetail(character: character, cachedImage: cachedImage)
+                case .failure(let error):
+                    print("Error retrieving cached image: \(error.localizedDescription)")
+                    self.presentCharacterDetail(character: character, cachedImage: nil)
+                }
+            }
+        }
+    }
+    
+    @MainActor
+    private func presentCharacterDetail(character: CharacterDetail, cachedImage: UIImage?) {
+        let detailView = CharacterDetailView(character: character, cachedImage: cachedImage)
+        let hostingController = UIHostingController(rootView: detailView)
+        self.navigationController?.pushViewController(hostingController, animated: true)
+    }
+}
+
+
+
